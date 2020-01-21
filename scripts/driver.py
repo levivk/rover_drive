@@ -12,10 +12,10 @@ odrv0 = None
 def vel_callback(data):
     for ax in leftAxes:
         rospy.loginfo('changing left')
-        ax.controller.vel_setpoint = data.left
+        ax.controller.vel_setpoint = data.axes[1]
     for ax in rightAxes:
         rospy.loginfo('changing right')
-        ax.controller.vel_setpoint = data.right
+        ax.controller.vel_setpoint = data.axes[4]
     
     rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.left)
     rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.right)
@@ -44,7 +44,7 @@ def driver():
     #     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
     # Sub to topic
-    rospy.Subscriber('drive_velocity', drive_vel, vel_callback)
+    rospy.Subscriber('control_data', Joy, vel_callback)
 
     rospy.loginfo("Ready for topic")
     rospy.spin()
