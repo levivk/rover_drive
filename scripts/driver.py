@@ -2,6 +2,7 @@
 
 import rospy
 from rover_drive.msg import drive_vel
+from sensor_msgs.msg import Joy
 import odrive
 from odrive.enums import *
 
@@ -12,13 +13,13 @@ odrv0 = None
 def vel_callback(data):
     for ax in leftAxes:
         rospy.loginfo('changing left')
-        ax.controller.vel_setpoint = data.axes[1]
+        ax.controller.vel_setpoint = data.axes[1] * 1000
     for ax in rightAxes:
         rospy.loginfo('changing right')
-        ax.controller.vel_setpoint = data.axes[4]
+        ax.controller.vel_setpoint = data.axes[4] * 1000
     
-    rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.left)
-    rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.right)
+    rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * 1000)
+    rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * 1000)
 
 def driver():
     rospy.init_node('driver')
@@ -44,7 +45,7 @@ def driver():
     #     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
     # Sub to topic
-    rospy.Subscriber('control_data', Joy, vel_callback)
+    rospy.Subscriber('joy', Joy, vel_callback)
 
     rospy.loginfo("Ready for topic")
     rospy.spin()
