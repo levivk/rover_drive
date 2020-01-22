@@ -21,7 +21,7 @@ class Driver():
 
         # Set left and right axis
         self.leftAxes = [odrv0.axis0]
-        self.rightAxes = [odrv0.axis1])
+        self.rightAxes = [odrv0.axis1]
 
         # # Set axis state
         # rospy.loginfo("Setting velocity control")
@@ -33,41 +33,41 @@ class Driver():
         #     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
         # Sub to topic
-        rospy.Subscriber('joy', Joy, vel_callback)
+        rospy.Subscriber('joy', Joy, self.vel_callback)
 
         # Set first watchdog
         self.timeout = timeout  # log error if this many seconds occur between received messages
-        self.timer = rospy.Timer(rospy.Duration(self.timeout), watchdog_callback, oneshot=True)
+        self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
         self.watchdog_fired = False
 
         rospy.loginfo("Ready for topic")
         rospy.spin()
 
     def vel_callback(self, data):
-        for ax in leftAxes:
-            rospy.loginfo('changing left')
+        if (self.watchdog_fired == True):
+            self.watchdog_fired = False
+            self.conn_lost_dur = rospy.Time.now() - self.conn_lost_time
+            rospy.logwarn("Connection to controller reestablished! Lost connection for {} seconds.".format(self.conn_lost_dur.to_sec()))
+
+        for ax in self.leftAxes:
             ax.controller.vel_setpoint = data.axes[1] * 1000
             ax.watchdog_feed()
-        for ax in rightAxes:
-            rospy.loginfo('changing right')
+        for ax in self.rightAxes:
             ax.controller.vel_setpoint = data.axes[4] * 1000
             ax.watchdog_feed()
-        
+
         rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * 1000)
         rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * 1000)
 
         # Received mesg so reset watchdog
         self.timer.shutdown()
-        self.timer = rospy.Timer(rospy.Duration(self.timeout), watchdog_callback, oneshot=True)
+        self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
 
     def watchdog_callback(self, event):
         # Have not received mesg for self.timeout seconds
-        rospy.logwarn("Have not received message for {} seconds!".format(self.timeout))
+        rospy.logwarn("Control timeout! {} seconds since last control!".format(self.timeout))
         self.watchdog_fired = True
-
-    # TODO something with watchdog_fired
-    # refer to https://answers.ros.org/question/292512/stop-my-robot-if-cmd_vel-doesnt-receive-a-message-within-a-certain-time-period/
-
+        self.conn_lost_time = rospy.Time.now()
 
 
 if __name__ == '__main__':

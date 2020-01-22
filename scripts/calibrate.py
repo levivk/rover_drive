@@ -52,7 +52,7 @@ def set_params(ax):
     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
     # ----- WATCHDOG -----
-    ax.config.watchdog_timeout = 2
+    # ax.config.watchdog_timeout = 2
 
 def wait_and_exit_on_error(ax):
     while ax.current_state != AXIS_STATE_IDLE:
