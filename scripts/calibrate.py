@@ -10,9 +10,12 @@ import argparse
 # --- DECLARATIONS --- 
 ROVER_DRIVE_POLE_PAIRS = 7
 ROVER_DRIVE_CPR = ROVER_DRIVE_POLE_PAIRS * 6
-SAVE_AND_REBOOT = True
+
+TIMEOUT = 2 # Seconds
 
 def set_params(ax):
+
+    # ----- MOTOR -----
     print('\n')
     print('----- <odrv>.<axis>.<motor> ------')
     print('assigning new pole pair #...')
@@ -47,6 +50,9 @@ def set_params(ax):
     ax.controller.config.vel_limit = 1000
     print('assigning new control mode...')
     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
+
+    # ----- WATCHDOG -----
+    ax.config.watchdog_timeout = 2
 
 def wait_and_exit_on_error(ax):
     while ax.current_state != AXIS_STATE_IDLE:
