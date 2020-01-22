@@ -20,8 +20,8 @@ class Driver():
         rospy.loginfo("Found ODrives")
 
         # Set left and right axis
-        self.leftAxes = [odrv0.axis0]
-        self.rightAxes = [odrv0.axis1]
+        self.leftAxes = [self.odrv0.axis0]
+        self.rightAxes = [self.odrv0.axis1]
 
         # # Set axis state
         # rospy.loginfo("Setting velocity control")
@@ -67,6 +67,10 @@ class Driver():
         # Have not received mesg for self.timeout seconds
         rospy.logwarn("Control timeout! {} seconds since last control!".format(self.timeout))
         self.watchdog_fired = True
+        for ax in self.leftAxes:
+            ax.controller.vel_setpoint = 0
+        for ax in self.rightAxes:
+            ax.controller.vel_setpoint = 0
         self.conn_lost_time = rospy.Time.now()
 
 
