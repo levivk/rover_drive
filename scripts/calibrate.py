@@ -28,6 +28,7 @@ def set_params(ax):
     ax.motor.config.resistance_calib_max_voltage = 4
     print('assigning new current range...')
     ax.motor.config.requested_current_range = 25
+    ax.motor.config.current_lim = 60
     print('assigning new current control bandwidth...')
     ax.motor.config.current_control_bandwidth = 100
     
@@ -128,6 +129,8 @@ if (__name__ == "__main__"):
     print("Looking for ODrive")
     odrv = odrive.find_any()
     print("Found ODrive")
+
+    odrv.config.break_resistance = 5.1
 
     if args.calib_both_axis:
         clear_errors(odrv)
