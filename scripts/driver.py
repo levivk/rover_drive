@@ -49,7 +49,7 @@ class Driver():
 
     def vel_callback(self, data):
 
-        msg_time = data.header.stamp
+        msg_time = data.header.stamp.to_sec()
 
         if (self.watchdog_fired == True):
             self.watchdog_fired = False
@@ -59,9 +59,10 @@ class Driver():
 
         if (self.filter_old_msgs):
             # if old messages are being sent due to connection loss
-            if ((rospy.Time.now() - msg_time) > (self.time_offset * 2):
+            if (msg_time < (rospy.Time.now().to_sec() - self.time_offset - 0.25)):
                 # And if the time difference is significantly greater than the average offset
                 # Ignore this msg
+                rospy.loginfo("Ignoring {} second old message".format((rospy.Time.now().to_sec() - self.time_offset) - msg_time))
                 return
             else:
                 # Msg is current, stop ignoring
@@ -69,7 +70,7 @@ class Driver():
 
         else:
             # Get time from msg and find offset
-            offset = rospy.Time.now() - msg_time
+            offset = rospy.Time.now().to_sec() - msg_time
             self.time_offset = (self.time_offset * 0.8) + (offset * 0.2) # Create average time offset
             rospy.loginfo("Average control time offset: {}".format(self.time_offset))
 
