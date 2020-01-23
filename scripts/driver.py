@@ -40,14 +40,42 @@ class Driver():
         self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
         self.watchdog_fired = False
 
+        # Init other variables
+        self.filter_old_msgs = False
+        self.time_offset = 0
+
         rospy.loginfo("Ready for topic")
         rospy.spin()
 
     def vel_callback(self, data):
+
+        msg_time = data.header.stamp
+
         if (self.watchdog_fired == True):
             self.watchdog_fired = False
             self.conn_lost_dur = rospy.Time.now() - self.conn_lost_time
             rospy.logwarn("Connection to controller reestablished! Lost connection for {} seconds.".format(self.conn_lost_dur.to_sec()))
+            self.filter_old_msgs = True
+
+        if (self.filter_old_msgs):
+            # if old messages are being sent due to connection loss
+            if ((rospy.Time.now() - msg_time) > (self.time_offset * 2):
+                # And if the time difference is significantly greater than the average offset
+                # Ignore this msg
+                return
+            else:
+                # Msg is current, stop ignoring
+                self.filter_old_msgs = False
+
+        else:
+            # Get time from msg and find offset
+            offset = rospy.Time.now() - msg_time
+            self.time_offset = (self.time_offset * 0.8) + (offset * 0.2) # Create average time offset
+            rospy.loginfo("Average control time offset: {}".format(self.time_offset))
+
+
+        # TODO if odrv.ax watchdog error
+        # reset error
 
         for ax in self.leftAxes:
             ax.controller.vel_setpoint = data.axes[1] * 1000
@@ -65,13 +93,15 @@ class Driver():
 
     def watchdog_callback(self, event):
         # Have not received mesg for self.timeout seconds
+        self.conn_lost_time = rospy.Time.now()
         rospy.logwarn("Control timeout! {} seconds since last control!".format(self.timeout))
         self.watchdog_fired = True
+
+        # Stop motors
         for ax in self.leftAxes:
             ax.controller.vel_setpoint = 0
         for ax in self.rightAxes:
             ax.controller.vel_setpoint = 0
-        self.conn_lost_time = rospy.Time.now()
 
 
 if __name__ == '__main__':

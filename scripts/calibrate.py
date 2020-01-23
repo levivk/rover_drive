@@ -110,6 +110,7 @@ if (__name__ == "__main__"):
 
     args = parser.parse_args()
 
+    print("Looking for ODrive")
     odrv = odrive.find_any()
     print("Found ODrive")
 
