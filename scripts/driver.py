@@ -5,8 +5,10 @@ from rover_drive.msg import drive_vel
 from sensor_msgs.msg import Joy
 import odrive
 from odrive.enums import *
+from odrive.utils import dump_errors
 
-odrv0 = None
+
+SPEED_LIMIT = 1000
 
 class Driver():
 
@@ -19,18 +21,25 @@ class Driver():
         # odrv2 = odrive.find_any()
         rospy.loginfo("Found ODrives")
 
+        # Clear errors
+        dump_errors(self.odrv0, True)
+
         # Set left and right axis
         self.leftAxes = [self.odrv0.axis0]
         self.rightAxes = [self.odrv0.axis1]
+        self.axes = self.leftAxes + self.rightAxes
 
-        # # Set axis state
-        # rospy.loginfo("Setting velocity control")
-        # for ax in leftAxes:
-        #     ax.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-        #     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
-        # for ax in rightAxes:
-        #     ax.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-        #     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
+        # Set axis state
+        rospy.logdebug("Setting velocity control")
+        for ax in (self.leftAxes + self.rightAxes):
+            ax.watchdog_feed()
+
+        dump_errors(self.odrv0, True)
+
+        for ax in (self.leftAxes + self.rightAxes):
+            ax.controller.vel_ramp_enable = True
+            ax.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+            ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
         # Sub to topic
         rospy.Subscriber('joy', Joy, self.vel_callback)
@@ -62,7 +71,7 @@ class Driver():
             if (msg_time < (rospy.Time.now().to_sec() - self.time_offset - 0.25)):
                 # And if the time difference is significantly greater than the average offset
                 # Ignore this msg
-                rospy.loginfo("Ignoring {} second old message".format((rospy.Time.now().to_sec() - self.time_offset) - msg_time))
+                rospy.logwarn("Ignoring {} second old message".format((rospy.Time.now().to_sec() - self.time_offset) - msg_time))
                 return
             else:
                 # Msg is current, stop ignoring
@@ -72,17 +81,35 @@ class Driver():
             # Get time from msg and find offset
             offset = rospy.Time.now().to_sec() - msg_time
             self.time_offset = (self.time_offset * 0.8) + (offset * 0.2) # Create average time offset
-            rospy.loginfo("Average control time offset: {}".format(self.time_offset))
+            rospy.logdebug("Average control time offset: {}".format(self.time_offset))
 
 
-        # TODO if odrv.ax watchdog error
-        # reset error
+        # Do stuff for all axes
+        for ax in self.axes:
+            ax.watchdog_feed()
 
+            # # ODrive watchdog error clear
+            # if(ax.error == errors.axis.ERROR_WATCHDOG_TIMER_EXPIRED):
+            #     ax.error = errors.axis.ERROR_NONE
+            #     rospy.logwarn("Cleared ODrive watchdog error")
+            # For other errors
+            if (ax.error != errors.axis.ERROR_NONE):
+                rospy.logfatal("Received axis error: {} {}".format(self.axes.index(ax), ax.error))
+
+        # Emergency brake - 4 & 5 are bumpers
+        if (data.buttons[4] and data.buttons[5]):
+            # Stop motors
+            rospy.logdebug("Applying E-brake")
+            for ax in (self.leftAxes + self.rightAxes):
+                ax.controller.vel_ramp_target = 0
+                ax.controller.vel_setpoint = 0
+
+        # Control motors as tank drive
         for ax in self.leftAxes:
-            ax.controller.vel_setpoint = data.axes[1] * 1000
+            ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
             ax.watchdog_feed()
         for ax in self.rightAxes:
-            ax.controller.vel_setpoint = data.axes[4] * 1000
+            ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
             ax.watchdog_feed()
 
         rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * 1000)
@@ -100,9 +127,14 @@ class Driver():
 
         # Stop motors
         for ax in self.leftAxes:
+            ax.controller.vel_ramp_target = 0
             ax.controller.vel_setpoint = 0
         for ax in self.rightAxes:
+            ax.controller.vel_ramp_target = 0
             ax.controller.vel_setpoint = 0
+
+    def clear_errors(self, odrv):
+        dump_errors(odrv, True)
 
 
 if __name__ == '__main__':

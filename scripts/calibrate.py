@@ -10,8 +10,12 @@ import argparse
 # --- DECLARATIONS --- 
 ROVER_DRIVE_POLE_PAIRS = 7
 ROVER_DRIVE_CPR = ROVER_DRIVE_POLE_PAIRS * 6
+RAMP_RATE = 500 # counts/sec^2
 
 TIMEOUT = 2 # Seconds
+
+def clear_errors(odrv):
+    dump_errors(odrv, True)
 
 def set_params(ax):
 
@@ -51,8 +55,14 @@ def set_params(ax):
     print('assigning new control mode...')
     ax.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
-    # ----- WATCHDOG -----
-    # ax.config.watchdog_timeout = 2
+    # Ramped velocity control
+    print('configuring ramped velocity control...')
+    ax.controller.config.vel_ramp_rate = 500
+    ax.controller.vel_ramp_enable = True
+
+    # Unset watchdog
+    ax.config.watchdog_timeout = 0
+
 
 def wait_and_exit_on_error(ax):
     while ax.current_state != AXIS_STATE_IDLE:
@@ -80,6 +90,11 @@ def calibrate(ax):
     ax.motor.config.pre_calibrated = True
     ax.encoder.config.pre_calibrated = True
     ax.config.startup_closed_loop_control = True
+
+    # ----- WATCHDOG -----
+    # Times out during calibration, so do here.
+    ax.config.watchdog_timeout = 2
+
 
 def save_reboot(odrv):
     # Save and restart
@@ -115,14 +130,17 @@ if (__name__ == "__main__"):
     print("Found ODrive")
 
     if args.calib_both_axis:
+        clear_errors(odrv)
         set_params(odrv.axis0)
         calibrate(odrv.axis0)
         set_params(odrv.axis1)
         calibrate(odrv.axis1)
     elif args.axis == 0:
+        clear_errors(odrv)
         set_params(odrv.axis0)
         calibrate(odrv.axis0)
     elif args.axis == 1:
+        clear_errors(odrv)
         set_params(odrv.axis1)
         calibrate(odrv.axis1)
     
