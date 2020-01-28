@@ -6,6 +6,7 @@ from sensor_msgs.msg import Joy
 import odrive
 from odrive.enums import *
 from odrive.utils import dump_errors
+from fibre.utils import Event, Logger
 
 
 SPEED_LIMIT = 1000
@@ -14,19 +15,47 @@ class Driver():
 
     def __init__(self, timeout):
         
-        # Get odrives
-        rospy.loginfo("Looking for ODrives...")
-        self.odrv0 = odrive.find_any()
-        # odrv1 = odrive.find_any()
-        # odrv2 = odrive.find_any()
+        # # Get odrives
+        # rospy.loginfo("Looking for ODrives...")
+
+        self.SERIAL_NUMS = [
+            12345,                  # Left, 0
+            35623406809166,         # Middle, 1
+            34567]                  # Right, 2
+
+        self.odrvs = [
+            None,
+            None,
+            None]
+
+        # Get ODrives
+        done_signal = Event(None)
+
+        def discovered_odrv(obj):
+            print("Found odrive with sn: {}".format(obj.serial_number))
+            if obj.serial_number in self.SERIAL_NUMS:
+                self.odrvs[self.SERIAL_NUMS.index(obj.serial_number)] = obj
+                print("ODrive is # {}".format(self.SERIAL_NUMS.index(obj.serial_number)))
+            else:
+                print("ODrive sn not found in list. New ODrive?")
+            if not None in self.odrvs:
+                done_signal.set()
+
+        odrive.find_all("usb", None, discovered_odrv, done_signal, None, Logger(verbose=False))
+        # Wait for ODrives
+        try:
+            done_signal.wait(timeout=30)
+        finally:
+            done_signal.set()
+
+        # self.odrv0 = odrive.find_any()
+        # # odrv1 = odrive.find_any()
+        # # odrv2 = odrive.find_any()
         rospy.loginfo("Found ODrives")
 
-        # Clear errors
-        dump_errors(self.odrv0, True)
-
         # Set left and right axis
-        self.leftAxes = [self.odrv0.axis0]
-        self.rightAxes = [self.odrv0.axis1]
+        self.leftAxes = [self.odrvs[0].axis0, self.odrvs[0].axis1, self.odrvs[1].axis0]
+        self.rightAxes = [self.odrvs[1].axis1, self.odrvs[2].axis0, self.odrvs[2].axis1]
         self.axes = self.leftAxes + self.rightAxes
 
         # Set axis state
@@ -34,7 +63,9 @@ class Driver():
         for ax in (self.leftAxes + self.rightAxes):
             ax.watchdog_feed()
 
-        dump_errors(self.odrv0, True)
+        # Clear errors
+        for odrv in self.odrvs:
+            dump_errors(odrv, True)
 
         for ax in (self.leftAxes + self.rightAxes):
             ax.controller.vel_ramp_enable = True

@@ -4,6 +4,7 @@ import odrive
 from odrive.enums import *
 from odrive.utils import dump_errors
 from fibre.protocol import ChannelBrokenException
+from fibre.utils import Event, Logger
 import time
 import argparse
 
@@ -13,6 +14,16 @@ ROVER_DRIVE_CPR = ROVER_DRIVE_POLE_PAIRS * 6
 RAMP_RATE = 500 # counts/sec^2
 
 TIMEOUT = 2 # Seconds
+
+SERIAL_NUMS = [
+    12345,                  # Left, 0
+    35623406809166,         # Middle, 1
+    34567]                  # Right, 2
+
+odrvs = [
+    None,
+    None,
+    None]
 
 def clear_errors(odrv):
     dump_errors(odrv, True)
@@ -61,13 +72,14 @@ def set_params(ax):
     ax.controller.config.vel_ramp_rate = 500
     ax.controller.vel_ramp_enable = True
 
-    # Unset watchdog
-    ax.config.watchdog_timeout = 0
+    # # Unset watchdog
+    # ax.config.watchdog_timeout = 0
 
 
 def wait_and_exit_on_error(ax):
     while ax.current_state != AXIS_STATE_IDLE:
         time.sleep(0.1)
+        ax.watchdog_feed()
     if ax.error != errors.axis.ERROR_NONE:
         dump_errors(odrv, True)
         exit()
@@ -92,9 +104,9 @@ def calibrate(ax):
     ax.encoder.config.pre_calibrated = True
     ax.config.startup_closed_loop_control = True
 
-    # ----- WATCHDOG -----
-    # Times out during calibration, so do here.
-    ax.config.watchdog_timeout = 2
+    # # ----- WATCHDOG -----
+    # # Times out during calibration, so do here.
+    # ax.config.watchdog_timeout = 2
 
 
 def save_reboot(odrv):
@@ -105,6 +117,7 @@ def save_reboot(odrv):
         odrv.reboot()
     except ChannelBrokenException:
         pass
+
 
 if (__name__ == "__main__"):
     
@@ -123,29 +136,71 @@ if (__name__ == "__main__"):
             dest = 'save_and_reboot', 
             action = "store_true",
             default = False)
+    parser.add_argument('-s', '--serial-number', 
+            help = 'Serial number of odrive',
+            dest = 'serial_number',
+            default = None, type = str )
+
+    parser.add_argument('-w', '--which-odrive',
+            help = 'Which ODrive to calibrate (1, 2, or 3). See top of this script for more info. Default is all three.',
+            dest = 'which_odrive',
+            default = None, type = int)
+
 
     args = parser.parse_args()
 
     print("Looking for ODrive")
-    odrv = odrive.find_any()
-    print("Found ODrive")
+    # odrv = odrive.find_any(serial_number=args.serial_number)
 
-    odrv.config.break_resistance = 5.1
+    # Get ODrives
+    done_signal = Event(None)
 
-    if args.calib_both_axis:
-        clear_errors(odrv)
-        set_params(odrv.axis0)
-        calibrate(odrv.axis0)
-        set_params(odrv.axis1)
-        calibrate(odrv.axis1)
-    elif args.axis == 0:
-        clear_errors(odrv)
-        set_params(odrv.axis0)
-        calibrate(odrv.axis0)
-    elif args.axis == 1:
-        clear_errors(odrv)
-        set_params(odrv.axis1)
-        calibrate(odrv.axis1)
+    def discovered_odrv(obj):
+        print("Found odrive with sn: {}".format(obj.serial_number))
+        if obj.serial_number in SERIAL_NUMS:
+            odrvs[SERIAL_NUMS.index(obj.serial_number)] = obj
+            print("ODrive is # {}".format(SERIAL_NUMS.index(obj.serial_number)))
+        else:
+            print("ODrive sn not found in list. New ODrive?")
+        if not None in odrvs:
+            done_signal.set()
+
+    odrive.find_all("usb", None, discovered_odrv, done_signal, None, Logger(verbose=False))
+    # Wait for ODrives
+    try:
+        done_signal.wait(timeout=30)
+    finally:
+        done_signal.set()
+
+    odrv.config.brake_resistance = 5.1
+
+    # Which odrives
+    if args.which_odrive == None:
+        to_calib = odrvs
+    else:
+        to_calib = [odrvs[args.which_odrive]]
+
+    for odrv in to_calib:
+        if args.calib_both_axis:
+            odrv.axis0.watchdog_feed()
+            odrv.axis1.watchdog_feed()
+            clear_errors(odrv)
+            set_params(odrv.axis0)
+            calibrate(odrv.axis0)
+            set_params(odrv.axis1)
+            calibrate(odrv.axis1)
+        elif args.axis == 0:
+            ax = odrv.axis0
+            ax.watchdog_feed()
+            clear_errors(odrv)
+            set_params(ax)
+            calibrate(ax)
+        elif args.axis == 1:
+            ax = odrv.axis1
+            ax.watchdog_feed()
+            clear_errors(odrv)
+            set_params(ax)
+            calibrate(ax)
     
     
     if args.save_and_reboot:
