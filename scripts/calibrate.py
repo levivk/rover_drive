@@ -16,9 +16,9 @@ RAMP_RATE = 500 # counts/sec^2
 TIMEOUT = 2 # Seconds
 
 SERIAL_NUMS = [
-    12345,                  # Left, 0
-    35623406809166,         # Middle, 1
-    34567]                  # Right, 2
+    35593293288011,                  # Left, 0
+    35550393020494,                  # Middle, 1
+    35563278839886]                  # Right, 2
 
 odrvs = [
     None,
@@ -79,9 +79,14 @@ def set_params(ax):
 def wait_and_exit_on_error(ax):
     while ax.current_state != AXIS_STATE_IDLE:
         time.sleep(0.1)
-        ax.watchdog_feed()
+        for odrv in odrvs:
+            odrv.axis0.watchdog_feed()
+            odrv.axis1.watchdog_feed()
     if ax.error != errors.axis.ERROR_NONE:
-        dump_errors(odrv, True)
+        for odrv in odrvs:
+            if(ax == odrv.axis0 or ax == odrv.axis1):
+                dump_errors(odrv, True)
+
         exit()
 
 def calibrate(ax):
@@ -168,11 +173,10 @@ if (__name__ == "__main__"):
     odrive.find_all("usb", None, discovered_odrv, done_signal, None, Logger(verbose=False))
     # Wait for ODrives
     try:
-        done_signal.wait(timeout=30)
+        done_signal.wait(timeout=120)
     finally:
         done_signal.set()
 
-    odrv.config.brake_resistance = 5.1
 
     # Which odrives
     if args.which_odrive == None:
@@ -181,6 +185,8 @@ if (__name__ == "__main__"):
         to_calib = [odrvs[args.which_odrive]]
 
     for odrv in to_calib:
+        odrv.config.brake_resistance = 5.1
+        print("Calibrating ODrive # {}".format(to_calib.index(odrv)))
         if args.calib_both_axis:
             odrv.axis0.watchdog_feed()
             odrv.axis1.watchdog_feed()

@@ -16,12 +16,12 @@ class Driver():
     def __init__(self, timeout):
         
         # # Get odrives
-        # rospy.loginfo("Looking for ODrives...")
+        rospy.loginfo("Looking for ODrives...")
 
         self.SERIAL_NUMS = [
-            12345,                  # Left, 0
-            35623406809166,         # Middle, 1
-            34567]                  # Right, 2
+            35593293288011,                  # Left, 0
+            35550393020494,                  # Middle, 1
+            35563278839886]                  # Right, 2
 
         self.odrvs = [
             None,
@@ -44,7 +44,7 @@ class Driver():
         odrive.find_all("usb", None, discovered_odrv, done_signal, None, Logger(verbose=False))
         # Wait for ODrives
         try:
-            done_signal.wait(timeout=30)
+            done_signal.wait(timeout=120)
         finally:
             done_signal.set()
 
