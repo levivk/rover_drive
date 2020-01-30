@@ -152,11 +152,8 @@ class Driver():
                 ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
             for ax in self.rightAxes:
                 ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
-            rospy.logdebug("Communication with odrives took {} seconds".format(
-                rospy.Time.now().to_sec() - odrv_com_time_start))
-
-        # -- Time STOP: Calculate time taken to reset ODrive
-        rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
+            # -- Time STOP: Calculate time taken to reset ODrive
+            rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
 
         rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * SPEED_LIMIT)
         rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * SPEED_LIMIT)
