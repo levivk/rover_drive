@@ -11,9 +11,11 @@ import argparse
 # --- DECLARATIONS --- 
 ROVER_DRIVE_POLE_PAIRS = 7
 ROVER_DRIVE_CPR = ROVER_DRIVE_POLE_PAIRS * 6
-RAMP_RATE = 500 # counts/sec^2
+RAMP_RATE = 1000 # counts/sec^2
 
 TIMEOUT = 2 # Seconds
+
+no_calib = False
 
 SERIAL_NUMS = [
     35593293288011,                  # Left, 0
@@ -69,7 +71,7 @@ def set_params(ax):
 
     # Ramped velocity control
     print('configuring ramped velocity control...')
-    ax.controller.config.vel_ramp_rate = 500
+    ax.controller.config.vel_ramp_rate = RAMP_RATE
     ax.controller.vel_ramp_enable = True
 
     # # Unset watchdog
@@ -151,6 +153,11 @@ if (__name__ == "__main__"):
             dest = 'which_odrive',
             default = None, type = int)
 
+    parser.add_argument('-nc', '--no-calib',
+            help = 'No calibration conducted',
+            dest = 'no_calib',
+            action = "store_true",
+            default = False)
 
     args = parser.parse_args()
 
@@ -177,7 +184,6 @@ if (__name__ == "__main__"):
     finally:
         done_signal.set()
 
-
     # Which odrives
     if args.which_odrive == None:
         to_calib = odrvs
@@ -192,22 +198,25 @@ if (__name__ == "__main__"):
             odrv.axis1.watchdog_feed()
             clear_errors(odrv)
             set_params(odrv.axis0)
-            calibrate(odrv.axis0)
+            if not args.no_calib:
+                calibrate(odrv.axis0)
             set_params(odrv.axis1)
-            calibrate(odrv.axis1)
+            if not args.no_calib:
+                calibrate(odrv.axis1)
         elif args.axis == 0:
             ax = odrv.axis0
             ax.watchdog_feed()
             clear_errors(odrv)
             set_params(ax)
-            calibrate(ax)
+            if not args.no_calib:
+                calibrate(ax)
         elif args.axis == 1:
             ax = odrv.axis1
             ax.watchdog_feed()
             clear_errors(odrv)
             set_params(ax)
-            calibrate(ax)
-    
-    
+            if not args.no_calib:
+                calibrate(ax)
+        
     if args.save_and_reboot:
         save_reboot(odrv)

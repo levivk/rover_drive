@@ -9,14 +9,15 @@ from odrive.utils import dump_errors
 from fibre.utils import Event, Logger
 
 
-SPEED_LIMIT = 1000
-MSG_PER_SECOND = 20
+SPEED_LIMIT = 2000
+MSG_PER_SECOND = 60
+WD_FEED_PER_SECOND = 2
 
 class Driver():
 
     def __init__(self, timeout):
         
-        # # Get odrives
+        # specify left, middle, and right ODrives
         rospy.loginfo("Looking for ODrives...")
 
         self.SERIAL_NUMS = [
@@ -84,6 +85,7 @@ class Driver():
         # Init other variables
         self.last_msg_time = 0
         self.last_recv_time = 0
+        self.next_wd_feed_time = 0
 
         rospy.loginfo("Ready for topic")
         rospy.spin()
@@ -118,20 +120,23 @@ class Driver():
 
         # --- Time BEGIN here
         odrv_com_time_start = rospy.Time.now().to_sec()
-        # Do stuff for all axes
-        for ax in self.axes:
-            ax.watchdog_feed()
+        # Read errors and feed watchdog at slower rate
+        if (recv_time > self.next_wd_feed_time):
+            self.next_wd_feed_time = recv_time + 1.0/WD_FEED_PER_SECOND
+            # Do stuff for all axes
+            for ax in self.axes:
+                ax.watchdog_feed()
 
-            # TODO
-            # # ODrive watchdog error clear
-            # if(ax.error == errors.axis.ERROR_WATCHDOG_TIMER_EXPIRED):
-            #     ax.error = errors.axis.ERROR_NONE
-            #     rospy.logwarn("Cleared ODrive watchdog error")
-            # For other errors
-            if (ax.error != errors.axis.ERROR_NONE):
-                rospy.logfatal("Received axis error: {} {}".format(self.axes.index(ax), ax.error))
+                # TODO
+                # # ODrive watchdog error clear
+                # if(ax.error == errors.axis.ERROR_WATCHDOG_TIMER_EXPIRED):
+                #     ax.error = errors.axis.ERROR_NONE
+                #     rospy.logwarn("Cleared ODrive watchdog error")
+                # For other errors
+                if (ax.error != errors.axis.ERROR_NONE):
+                    rospy.logfatal("Received axis error: {} {}".format(self.axes.index(ax), ax.error))
         
-        # -- Time STOP: Calculate time taken to reset ODrive watchdog
+        # -- Time STOP: Calculate time taken to reset ODrive
         rospy.logdebug("Reseting each ODrive watchdog took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
 
         # Emergency brake - 4 & 5 are bumpers
@@ -141,15 +146,14 @@ class Driver():
             for ax in (self.leftAxes + self.rightAxes):
                 ax.controller.vel_ramp_target = 0
                 ax.controller.vel_setpoint = 0
-
-        # Control motors as tank drive
-        for ax in self.leftAxes:
-            ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
-        for ax in self.rightAxes:
-            ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
-
-        # -- Time STOP: Calculate time taken to assign new velocity target
-        rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
+        else:
+            # Control motors as tank drive
+            for ax in self.leftAxes:
+                ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
+            for ax in self.rightAxes:
+                ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
+            # -- Time STOP: Calculate time taken to reset ODrive
+            rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
 
         rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * SPEED_LIMIT)
         rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * SPEED_LIMIT)
@@ -160,7 +164,7 @@ class Driver():
 
         tot_time = rospy.Time.now().to_sec() - recv_time
 
-        # --- Time STOP: Calculate time taken to execute each instruction
+        # --- Time STOP: Calculate time taken to reset ODrive
         rospy.logdebug("Callback execution took {} seconds".format(tot_time))
 
     def watchdog_callback(self, event):
