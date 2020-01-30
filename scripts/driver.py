@@ -118,6 +118,7 @@ class Driver():
             self.conn_lost_dur = rospy.Time.now() - self.conn_lost_time
             rospy.logwarn("Connection to controller reestablished! Lost connection for {} seconds.".format(self.conn_lost_dur.to_sec()))
 
+<<<<<<< HEAD
         odrv_com_time_start = rospy.Time.now().to_sec()
         # Read errors and feed watchdog at slower rate
         if (recv_time > self.next_wd_feed_time):
@@ -137,6 +138,25 @@ class Driver():
         
         rospy.logdebug("Reseting each ODrive watchdog took {} seconds".format(
             rospy.Time.now().to_sec() - odrv_com_time_start))
+=======
+        # --- Time BEGIN here
+        odrv_com_time_start = rospy.Time.now().to_sec()
+        # Do stuff for all axes
+        for ax in self.axes:
+            ax.watchdog_feed()
+
+            # TODO
+            # # ODrive watchdog error clear
+            # if(ax.error == errors.axis.ERROR_WATCHDOG_TIMER_EXPIRED):
+            #     ax.error = errors.axis.ERROR_NONE
+            #     rospy.logwarn("Cleared ODrive watchdog error")
+            # For other errors
+            if (ax.error != errors.axis.ERROR_NONE):
+                rospy.logfatal("Received axis error: {} {}".format(self.axes.index(ax), ax.error))
+        
+        # -- Time STOP: Calculate time taken to reset ODrive
+        rospy.logdebug("Reseting each ODrive watchdog took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
+>>>>>>> 0792369a988befa4fc3aa8fd6f39b06e15ae5244
 
         # Emergency brake - 4 & 5 are bumpers
         if (data.buttons[4] and data.buttons[5]):
@@ -154,6 +174,9 @@ class Driver():
             rospy.logdebug("Communication with odrives took {} seconds".format(
                 rospy.Time.now().to_sec() - odrv_com_time_start))
 
+        # -- Time STOP: Calculate time taken to reset ODrive
+        rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
+
         rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * SPEED_LIMIT)
         rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * SPEED_LIMIT)
 
@@ -162,6 +185,8 @@ class Driver():
         self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
 
         tot_time = rospy.Time.now().to_sec() - recv_time
+
+        # --- Time STOP: Calculate time taken to reset ODrive
         rospy.logdebug("Callback execution took {} seconds".format(tot_time))
 
     def watchdog_callback(self, event):
