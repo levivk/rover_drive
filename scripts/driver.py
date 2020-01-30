@@ -10,6 +10,7 @@ from fibre.utils import Event, Logger
 
 
 SPEED_LIMIT = 1000
+MSG_PER_SECOND = 20
 
 class Driver():
 
@@ -54,8 +55,8 @@ class Driver():
         rospy.loginfo("Found ODrives")
 
         # Set left and right axis
-        self.leftAxes = [self.odrvs[0].axis0, self.odrvs[0].axis1, self.odrvs[1].axis0]
-        self.rightAxes = [self.odrvs[1].axis1, self.odrvs[2].axis0, self.odrvs[2].axis1]
+        self.leftAxes = [self.odrvs[0].axis0, self.odrvs[0].axis1, self.odrvs[1].axis1]
+        self.rightAxes = [self.odrvs[1].axis0, self.odrvs[2].axis0, self.odrvs[2].axis1]
         self.axes = self.leftAxes + self.rightAxes
 
         # Set axis state
@@ -81,44 +82,46 @@ class Driver():
         self.watchdog_fired = False
 
         # Init other variables
-        self.filter_old_msgs = False
-        self.time_offset = 0
+        self.last_msg_time = 0
+        self.last_recv_time = 0
 
         rospy.loginfo("Ready for topic")
         rospy.spin()
 
     def vel_callback(self, data):
 
+        # Record times
+        recv_time = rospy.Time.now().to_sec()
         msg_time = data.header.stamp.to_sec()
 
+        # Filter old/delayed messages
+        if (msg_time < (recv_time - 0.25)):
+            # And if the time difference is significantly greater than the average offset
+            # Ignore this msg
+            rospy.logwarn("Ignoring {} second old message".format(recv_time - msg_time))
+            return
+
+        # Filter messages at frequency
+        if (msg_time < (self.last_msg_time + 1.0/MSG_PER_SECOND)):
+            # Ignore this message
+            return
+        else:
+            rospy.logdebug("Time since last message received: {} seconds".format(recv_time - self.last_recv_time))
+            self.last_recv_time = recv_time
+            self.last_msg_time = msg_time
+
+        # Notify of reconnection
         if (self.watchdog_fired == True):
             self.watchdog_fired = False
             self.conn_lost_dur = rospy.Time.now() - self.conn_lost_time
             rospy.logwarn("Connection to controller reestablished! Lost connection for {} seconds.".format(self.conn_lost_dur.to_sec()))
-            self.filter_old_msgs = True
-
-        if (self.filter_old_msgs):
-            # if old messages are being sent due to connection loss
-            if (msg_time < (rospy.Time.now().to_sec() - self.time_offset - 0.25)):
-                # And if the time difference is significantly greater than the average offset
-                # Ignore this msg
-                rospy.logwarn("Ignoring {} second old message".format((rospy.Time.now().to_sec() - self.time_offset) - msg_time))
-                return
-            else:
-                # Msg is current, stop ignoring
-                self.filter_old_msgs = False
-
-        else:
-            # Get time from msg and find offset
-            offset = rospy.Time.now().to_sec() - msg_time
-            self.time_offset = (self.time_offset * 0.8) + (offset * 0.2) # Create average time offset
-            rospy.logdebug("Average control time offset: {}".format(self.time_offset))
 
 
         # Do stuff for all axes
         for ax in self.axes:
             ax.watchdog_feed()
 
+            # TODO
             # # ODrive watchdog error clear
             # if(ax.error == errors.axis.ERROR_WATCHDOG_TIMER_EXPIRED):
             #     ax.error = errors.axis.ERROR_NONE
@@ -138,17 +141,18 @@ class Driver():
         # Control motors as tank drive
         for ax in self.leftAxes:
             ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
-            ax.watchdog_feed()
         for ax in self.rightAxes:
             ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
-            ax.watchdog_feed()
 
-        rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * 1000)
-        rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * 1000)
+        rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * SPEED_LIMIT)
+        rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * SPEED_LIMIT)
 
         # Received mesg so reset watchdog
         self.timer.shutdown()
         self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
+
+        tot_time = rospy.Time.now().to_sec() - recv_time
+        rospy.logdebug("Callback execution took {} seconds".format(tot_time))
 
     def watchdog_callback(self, event):
         # Have not received mesg for self.timeout seconds
@@ -169,6 +173,6 @@ class Driver():
 
 
 if __name__ == '__main__':
-    rospy.init_node('driver')
+    rospy.init_node('driver', log_level=rospy.DEBUG)
     timeout = 2
     driver = Driver(timeout)
