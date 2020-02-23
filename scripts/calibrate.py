@@ -19,7 +19,7 @@ no_calib = False
 
 SERIAL_NUMS = [
     35593293288011,                  # Left, 0
-    35550393020494,                  # Middle, 1
+    35623406809166,                  # Middle, 1  (old was 35550393020494)
     35563278839886]                  # Right, 2
 
 odrvs = [
