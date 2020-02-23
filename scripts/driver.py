@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from rover_drive.msg import drive_vel
+#from rover_drive.msg import drive_vel
 from sensor_msgs.msg import Joy
 import odrive
 from odrive.enums import *
