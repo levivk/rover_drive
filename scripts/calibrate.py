@@ -18,7 +18,7 @@ TIMEOUT = 2 # Seconds
 no_calib = False
 
 SERIAL_NUMS = [
-    35593293288011,                  # Left, 0
+    35593293288011,                  # Left, 0  (205F359A524B)
     35623406809166,                  # Middle, 1  (old was 35550393020494)
     35563278839886]                  # Right, 2
 
@@ -146,10 +146,10 @@ if (__name__ == "__main__"):
     parser.add_argument('-s', '--serial-number', 
             help = 'Serial number of odrive',
             dest = 'serial_number',
-            default = None, type = str )
+            default = None, type = int )
 
     parser.add_argument('-w', '--which-odrive',
-            help = 'Which ODrive to calibrate (1, 2, or 3). See top of this script for more info. Default is all three.',
+            help = 'Which ODrive to calibrate (0, 1, or 2). See top of this script for more info. Default is all three.',
             dest = 'which_odrive',
             default = None, type = int)
 
@@ -163,6 +163,10 @@ if (__name__ == "__main__"):
 
     print("Looking for ODrive")
     # odrv = odrive.find_any(serial_number=args.serial_number)
+
+    if(args.serial_number != None):
+        SERIAL_NUMS = [args.serial_number]
+        odrvs = [None]
 
     # Get ODrives
     done_signal = Event(None)
@@ -191,7 +195,7 @@ if (__name__ == "__main__"):
         to_calib = [odrvs[args.which_odrive]]
 
     for odrv in to_calib:
-        odrv.config.brake_resistance = 5.1
+        odrv.config.brake_resistance = 0.5
         print("Calibrating ODrive # {}".format(to_calib.index(odrv)))
         if args.calib_both_axis:
             odrv.axis0.watchdog_feed()
