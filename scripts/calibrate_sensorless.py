@@ -100,6 +100,28 @@ def save_reboot(odrv):
         pass
 
 
+def get_odrives():
+    # Get ODrives
+    done_signal = Event(None)
+
+    def discovered_odrv(obj):
+        print("Found odrive with sn: {}".format(obj.serial_number))
+        if obj.serial_number in SERIAL_NUMS:
+            odrvs[SERIAL_NUMS.index(obj.serial_number)] = obj
+            print("ODrive is # {}".format(SERIAL_NUMS.index(obj.serial_number)))
+        else:
+            print("ODrive sn not found in list. New ODrive?")
+        if not None in odrvs:
+            done_signal.set()
+
+    odrive.find_all("usb", None, discovered_odrv, done_signal, None, Logger(verbose=False))
+    # Wait for ODrives
+    try:
+        done_signal.wait(timeout=120)
+    finally:
+        done_signal.set()
+
+
 if (__name__ == "__main__"):
     
     # Parse args
@@ -176,19 +198,13 @@ if (__name__ == "__main__"):
             odrv.axis1.watchdog_feed()
             clear_errors(odrv)
             odrv.erase_configuration()
-            sn = hex(odrv.serial_number)
-            sn = sn[2:].upper()
+            # sn = hex(odrv.serial_number)
+            # sn = sn[2:].upper()
             try:
                 odrv.reboot()
             except ChannelBrokenException:
-                odrv = odrive.find_any(serial_number=sn)
+                pass
 
-            set_params(odrv.axis0)
-            if not args.no_calib:
-                calibrate(odrv.axis0)
-            set_params(odrv.axis1)
-            if not args.no_calib:
-                calibrate(odrv.axis1)
         elif args.axis == 0:
             ax = odrv.axis0
             ax.watchdog_feed()
@@ -204,5 +220,12 @@ if (__name__ == "__main__"):
             if not args.no_calib:
                 calibrate(ax)
     
+    # Reconnecting to odrives
+    get_odrives()
+
+    for odrv in odrvs:
+        set_params(odrv.axis0)
+        set_params(odrv.axis1)
+
     if args.save_and_reboot:
         save_reboot(odrv)
