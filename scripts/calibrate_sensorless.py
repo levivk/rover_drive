@@ -176,10 +176,11 @@ if (__name__ == "__main__"):
             odrv.axis1.watchdog_feed()
             clear_errors(odrv)
             odrv.erase_configuration()
+            sn = odrv.serial_number
             try:
                 odrv.reboot()
             except ChannelBrokenException:
-                pass
+                odrv = odrive.find_any(serial_number=sn)
 
             set_params(odrv.axis0)
             if not args.no_calib:
