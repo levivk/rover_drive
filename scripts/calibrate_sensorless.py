@@ -176,7 +176,8 @@ if (__name__ == "__main__"):
             odrv.axis1.watchdog_feed()
             clear_errors(odrv)
             odrv.erase_configuration()
-            sn = odrv.serial_number
+            sn = hex(odrv.serial_number)
+            sn = sn[2:]
             try:
                 odrv.reboot()
             except ChannelBrokenException:
