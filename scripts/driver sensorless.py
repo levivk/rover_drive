@@ -7,6 +7,7 @@ import odrive
 from odrive.enums import *
 from odrive.utils import dump_errors
 from fibre.utils import Event, Logger
+from fibre.protocol import ChannelBrokenException
 
 
 SPEED_LIMIT = 2000
@@ -22,9 +23,75 @@ class Driver():
 
         self.SERIAL_NUMS = [
             35593293288011,                  # Left, 0
-            35550393020494,                  # Middle, 1
+            35623406809166,                  # Middle, 1
             35563278839886]                  # Right, 2
 
+        rospy.loginfo("Getting odrives first time")
+        self.get_odrives()
+
+        rospy.loginfo("Erasing and restarting odrives")
+        
+        for odrv in self.odrvs:
+            odrv.erase_configuration()
+            try:
+                odrv.reboot()
+            except ChannelBrokenException:
+                pass
+
+        rospy.loginfo("Reconnecting to odrives")
+        self.get_odrives()
+        rospy.loginfo("Reconnected!")
+
+        # Set left and right axis
+        self.leftAxes = [self.odrvs[0].axis0, self.odrvs[0].axis1, self.odrvs[1].axis1]
+        self.rightAxes = [self.odrvs[1].axis0, self.odrvs[2].axis0, self.odrvs[2].axis1]
+        self.axes = self.leftAxes + self.rightAxes
+
+        # Set axis state
+        for ax in (self.leftAxes + self.rightAxes):
+            ax.watchdog_feed()
+
+        # Clear errors
+        for odrv in self.odrvs:
+            dump_errors(odrv, True)
+            odrv.config.brake_resistance = 0.5
+
+        for ax in (self.leftAxes + self.rightAxes):
+            ax.controller.config.vel_gain = 0.01
+            ax.controller.config.vel_integrator_gain = 0.05
+            ax.controller.config.control_mode = 2
+            ax.controller.vel_setpoint = 400
+            ax.motor.config.direction = 1
+            ax.sensorless_estimator.config.pm_flux_linkage = 5.51328895422 / (7 * 140) # pole pairs = 7, motor kv = 140KV
+
+            # increase current_lim_tolerance
+            ax.motor.config.current_lim_tolerance = 20
+            # set to ignore illegal hall state and save all changes
+            ax.encoder.config.ignore_illegal_hall_state = True
+
+            # calibrate motor
+            ax.requested_state = AXIS_STATE_MOTOR_CALIBRATION
+
+            ax.requested_state = AXIS_STATE_SENSORLESS_CONTROL
+            ax.controller.vel_setpoint = 0
+
+        # Sub to topic
+        rospy.Subscriber('joy', Joy, self.vel_callback)
+
+        # Set first watchdog
+        self.timeout = timeout  # log error if this many seconds occur between received messages
+        self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
+        self.watchdog_fired = False
+
+        # Init other variables
+        self.last_msg_time = 0
+        self.last_recv_time = 0
+        self.next_wd_feed_time = 0
+
+        rospy.loginfo("Ready for topic")
+        rospy.spin()
+
+    def get_odrives(self):
         self.odrvs = [
             None,
             None,
@@ -50,59 +117,7 @@ class Driver():
         finally:
             done_signal.set()
 
-        # self.odrv0 = odrive.find_any()
-        # # odrv1 = odrive.find_any()
-        # # odrv2 = odrive.find_any()
         rospy.loginfo("Found ODrives")
-
-        # Set left and right axis
-        self.leftAxes = [self.odrvs[0].axis0, self.odrvs[0].axis1, self.odrvs[1].axis1]
-        self.rightAxes = [self.odrvs[1].axis0, self.odrvs[2].axis0, self.odrvs[2].axis1]
-        self.axes = self.leftAxes + self.rightAxes
-
-        # Set axis state
-        rospy.logdebug("Setting velocity control")
-        for ax in (self.leftAxes + self.rightAxes):
-            ax.watchdog_feed()
-
-        # Clear errors
-        for odrv in self.odrvs:
-            dump_errors(odrv, True)
-
-        for ax in (self.leftAxes + self.rightAxes):
-            ax.controller.config.vel_gain = 0.01
-            ax.controller.config.vel_integrator_gain = 0.05
-            ax.controller.config.control_mode = 2
-            ax.controller.vel_setpoint = 400
-            ax.motor.config.direction = 1
-            ax.sensorless_estimator.config.pm_flux_linkage = 5.51328895422 / (7 * 140) # pole pairs = 7, motor kv = 140KV
-
-            # increase current_lim_tolerance
-            ax.motor.config.current_lim_tolerance = 20
-            # set to ignore illegal hall state and save all changes
-            ax.encoder.config.ignore_illegal_hall_state = True
-            ax.save_configuration()
-
-            # calibrate motor
-            ax.requested_state = AXIS_STATE_MOTOR_CALIBRATION
-
-            ax.requested_state = AXIS_STATE_SENSORLESS_CONTROL
-
-        # Sub to topic
-        rospy.Subscriber('joy', Joy, self.vel_callback)
-
-        # Set first watchdog
-        self.timeout = timeout  # log error if this many seconds occur between received messages
-        self.timer = rospy.Timer(rospy.Duration(self.timeout), self.watchdog_callback, oneshot=True)
-        self.watchdog_fired = False
-
-        # Init other variables
-        self.last_msg_time = 0
-        self.last_recv_time = 0
-        self.next_wd_feed_time = 0
-
-        rospy.loginfo("Ready for topic")
-        rospy.spin()
 
     def vel_callback(self, data):
 
@@ -158,14 +173,13 @@ class Driver():
             # Stop motors
             rospy.logdebug("Applying E-brake")
             for ax in (self.leftAxes + self.rightAxes):
-                ax.controller.vel_ramp_target = 0
                 ax.controller.vel_setpoint = 0
         else:
             # Control motors as tank drive
             for ax in self.leftAxes:
-                ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
+                ax.controller.vel_setpoint = data.axes[1] * SPEED_LIMIT
             for ax in self.rightAxes:
-                ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
+                ax.controller.vel_setpoint = data.axes[4] * SPEED_LIMIT
             # -- Time STOP: Calculate time taken to reset ODrive
             rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
 
@@ -189,10 +203,10 @@ class Driver():
 
         # Stop motors
         for ax in self.leftAxes:
-            ax.controller.vel_ramp_target = 0
+            # ax.controller.vel_ramp_target = 0
             ax.controller.vel_setpoint = 0
         for ax in self.rightAxes:
-            ax.controller.vel_ramp_target = 0
+            # ax.controller.vel_ramp_target = 0
             ax.controller.vel_setpoint = 0
 
     def clear_errors(self, odrv):
