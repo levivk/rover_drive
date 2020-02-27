@@ -31,52 +31,23 @@ def clear_errors(odrv):
     dump_errors(odrv, True)
 
 def set_params(ax):
-
-    # ----- MOTOR -----
-    print('\n')
-    print('----- <odrv>.<axis>.<motor> ------')
-    print('assigning new pole pair #...')
-    ax.motor.config.pole_pairs = ROVER_DRIVE_POLE_PAIRS
-    print('assigning new resistance_calib_max_voltage...')
-    ax.motor.config.resistance_calib_max_voltage = 4
-    print('assigning new current range...')
-    ax.motor.config.requested_current_range = 25
-    ax.motor.config.current_lim = 30
-    ax.motor.config.current_lim_tolerance = 20
-    print('assigning new current control bandwidth...')
-    ax.motor.config.current_control_bandwidth = 100
-    
-    # ----- ENCODER -----
-    print('\n')
-    print('----- <odrv>.<axis>.<encoder> ------')
-    print('assigning new encoder mode...')
-   # ax.encoder.config.mode = ENCODER_MODE_HALL
-    print('assigning new cpr value...')
-   # ax.encoder.config.cpr = ROVER_DRIVE_CPR
-    print('assigning new bandwidth...')
-   # ax.encoder.config.bandwidth = 100
-    ax.encoder.config.ignore_illegal_hall_state = True
-    
-    # ----- CONTROLLER -----
-    print('\n')
-    print('----- <odrv>.<axis>.<controller> ------')
-    print('assigning new position gain...')
-    ax.controller.config.pos_gain = 1
-    print('assigning new velocity gain...')
     ax.controller.config.vel_gain = 0.01
-    print('assigning new velocity integrator gain...')
     ax.controller.config.vel_integrator_gain = 0.05
-    print('assigning new velocity limit...')
-    ax.controller.config.vel_limit = 1000
-    print('assigning new control mode...')
     ax.controller.config.control_mode = 2
-    ax.sensorless_estimator.config.pm_flux_linkage = 5.51328895422 / (7 * 140)
+    ax.controller.vel_setpoint = 400
+    ax.motor.config.direction = 1
+    ax.sensorless_estimator.config.pm_flux_linkage = 5.51328895422 / (7 * 140) # pole pairs = 7, motor kv = 140KV
 
-    # Ramped velocity control
-    print('configuring ramped velocity control...')
- #   ax.controller.config.vel_ramp_rate = RAMP_RATE
-  #  ax.controller.vel_ramp_enable = True
+    # increase current_lim_tolerance
+    ax.motor.config.current_lim_tolerance = 20
+    # set to ignore illegal hall state and save all changes
+    ax.encoder.config.ignore_illegal_hall_state = True
+    ax.save_configuration()
 
+    # calibrate motor
+    ax.requested_state = AXIS_STATE_MOTOR_CALIBRATION
+
+    ax.requested_state = AXIS_STATE_SENSORLESS_CONTROL
     # # Unset watchdog
     ax.config.watchdog_timeout = 0
 
@@ -224,6 +195,6 @@ if (__name__ == "__main__"):
             set_params(ax)
             if not args.no_calib:
                 calibrate(ax)
-        
+    
     if args.save_and_reboot:
         save_reboot(odrv)
