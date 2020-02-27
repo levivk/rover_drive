@@ -8,7 +8,7 @@ from odrive.enums import *
 from odrive.utils import dump_errors
 from fibre.utils import Event, Logger
 from fibre.protocol import ChannelBrokenException
-
+import time
 
 SPEED_LIMIT = 2000
 MSG_PER_SECOND = 60
@@ -95,12 +95,12 @@ class Driver():
 
     def wait_and_exit_on_error(self,ax):
         while ax.current_state != AXIS_STATE_IDLE:
-            rospy.time.sleep(0.1)
-            for odrv in odrvs:
+            time.sleep(0.1)
+            for odrv in self.odrvs:
                 odrv.axis0.watchdog_feed()
                 odrv.axis1.watchdog_feed()
         if ax.error != errors.axis.ERROR_NONE:
-            for odrv in odrvs:
+            for odrv in self.odrvs:
                 if(ax == odrv.axis0 or ax == odrv.axis1):
                     dump_errors(odrv, True)
 
