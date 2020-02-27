@@ -46,6 +46,7 @@ def set_params(ax):
 
     # calibrate motor
     ax.requested_state = AXIS_STATE_MOTOR_CALIBRATION
+    wait_and_exit_on_error(ax)
 
     ax.requested_state = AXIS_STATE_SENSORLESS_CONTROL
     # # Unset watchdog
