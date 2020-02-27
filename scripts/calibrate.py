@@ -41,7 +41,7 @@ def set_params(ax):
     ax.motor.config.resistance_calib_max_voltage = 4
     print('assigning new current range...')
     ax.motor.config.requested_current_range = 25
-    ax.motor.config.current_lim = 60
+    ax.motor.config.current_lim = 30
     print('assigning new current control bandwidth...')
     ax.motor.config.current_control_bandwidth = 100
     
