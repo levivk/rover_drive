@@ -18,7 +18,7 @@ TIMEOUT = 2 # Seconds
 no_calib = False
 
 SERIAL_NUMS = [
-    35554687266894,                  # Left, 0   (old was 35593293288011)
+    35593293288011,                  # Left, 0   (old was 35593293288011)
     35623406809166,                  # Middle, 1  (old was 35550393020494)
     35563278839886]                  # Right, 2
 
