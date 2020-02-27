@@ -42,7 +42,6 @@ def set_params(ax):
     ax.motor.config.current_lim_tolerance = 20
     # set to ignore illegal hall state and save all changes
     ax.encoder.config.ignore_illegal_hall_state = True
-    ax.save_configuration()
 
     # calibrate motor
     ax.requested_state = AXIS_STATE_MOTOR_CALIBRATION
@@ -176,6 +175,12 @@ if (__name__ == "__main__"):
             odrv.axis0.watchdog_feed()
             odrv.axis1.watchdog_feed()
             clear_errors(odrv)
+            odrv.erase_configuration()
+            try:
+                odrv.reboot()
+            except ChannelBrokenException:
+                pass
+
             set_params(odrv.axis0)
             if not args.no_calib:
                 calibrate(odrv.axis0)
