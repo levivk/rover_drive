@@ -220,7 +220,11 @@ if (__name__ == "__main__"):
             if not args.no_calib:
                 calibrate(ax)
     
-    # Reconnecting to odrives
+    print("Reconnecting to odrives")
+    odrvs = [
+        None,
+        None,
+        None]
     get_odrives()
 
     for odrv in odrvs:
