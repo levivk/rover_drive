@@ -65,7 +65,8 @@ class Driver():
         rospy.logdebug("Enabling Watchdog")
         for ax in (self.leftAxes + self.rightAxes):
             ax.watchdog_feed()
-	    ax.config.watchdog_timeout = 2
+            ax.config.watchdog_timeout = 2
+            ax.encoder.config.ignore_illegal_hall_state = True
 
         # Clear errors
         for odrv in self.odrvs:
@@ -160,7 +161,7 @@ class Driver():
 
                 # Control motors in arcade mode
                 left_speed = data.axes[1] * SPEED_LIMIT
-                right_speed = left_speed
+                right_speed = left_speed * -1
                 turning = data.axes[5]
 
                 if(turning > 0):
