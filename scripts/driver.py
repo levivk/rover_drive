@@ -121,8 +121,8 @@ class Driver():
             self.conn_lost_dur = rospy.Time.now() - self.conn_lost_time
             rospy.logwarn("Connection to controller reestablished! Lost connection for {} seconds.".format(self.conn_lost_dur.to_sec()))
 
-        # If one disconnects, stop all.
-        try:
+        # # If one disconnects, stop all.
+        # try:
 
             # --- Time BEGIN here
             odrv_com_time_start = rospy.Time.now().to_sec()
@@ -154,35 +154,35 @@ class Driver():
                     ax.controller.vel_setpoint = 0
             else:
                 # # Control motors as tank drive
-                # for ax in self.leftAxes:
-                #     ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
-                # for ax in self.rightAxes:
-                #     ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT
+                for ax in self.leftAxes:
+                    ax.controller.vel_ramp_target = data.axes[1] * SPEED_LIMIT
+                for ax in self.rightAxes:
+                    ax.controller.vel_ramp_target = data.axes[4] * SPEED_LIMIT * -1
 
                 # Control motors in arcade mode
-                left_speed = data.axes[1] * SPEED_LIMIT
-                right_speed = left_speed * -1
-                turning = data.axes[5]
+                # left_speed = data.axes[1] * SPEED_LIMIT
+                # right_speed = left_speed * -1
+                # turning = data.axes[5]
 
-                if(turning > 0):
-                    #turn right by increasing left speed - mult by between 1 and 2
-                    left_speed = left_speed * (abs(turning) + 1) 
-                if(turning < 0):
-                    right_speed = right_speed * (abs(turning) + 1)
+                # if(turning > 0):
+                #     #turn right by increasing left speed - mult by between 1 and 2
+                #     left_speed = left_speed * (abs(turning) + 1) 
+                # if(turning < 0):
+                #     right_speed = right_speed * (abs(turning) + 1)
 
-                for ax in self.leftAxes:
-                    ax.controller.vel_ramp_target = left_speed
-                for ax in self.rightAxes:
-                    ax.controller.vel_ramp_target = right_speed
+                # for ax in self.leftAxes:
+                #     ax.controller.vel_ramp_target = left_speed
+                # for ax in self.rightAxes:
+                #     ax.controller.vel_ramp_target = right_speed
 
 
                 # -- Time STOP: Calculate time taken to reset ODrive
                 rospy.logdebug("Communication with odrives took {} seconds".format(rospy.Time.now().to_sec() - odrv_com_time_start))
-        except ChannelBrokenException:
-            # Stop motors (This could be a problem if the disconnected Odrive continues to run...)
-            for ax in (self.leftAxes + self.rightAxes):
-                ax.controller.vel_ramp_target = 0
-                # ax.controller.vel_setpoint = 0
+        # except ChannelBrokenException:
+        #     # Stop motors (This could be a problem if the disconnected Odrive continues to run...)
+        #     for ax in (self.leftAxes + self.rightAxes):
+        #         ax.controller.vel_ramp_target = 0
+        #         # ax.controller.vel_setpoint = 0
 
         rospy.loginfo(rospy.get_caller_id() + "Left: %s", data.axes[1] * SPEED_LIMIT)
         rospy.loginfo(rospy.get_caller_id() + "Right: %s", data.axes[4] * SPEED_LIMIT)
