@@ -9,7 +9,7 @@ from odrive.utils import dump_errors
 from fibre.utils import Event, Logger
 
 
-SPEED_LIMIT = 2000
+SPEED_LIMIT = 400
 MSG_PER_SECOND = 60
 WD_FEED_PER_SECOND = 2
 
@@ -22,7 +22,7 @@ class Driver():
 
         self.SERIAL_NUMS = [
             35593293288011,                  # Left, 0
-            35550393020494,                  # Middle, 1
+            35623406809166,                  # Middle, 1
             35563278839886]                  # Right, 2
 
         self.odrvs = [
@@ -61,9 +61,10 @@ class Driver():
         self.axes = self.leftAxes + self.rightAxes
 
         # Set axis state
-        rospy.logdebug("Setting velocity control")
+        rospy.logdebug("Enabling Watchdog")
         for ax in (self.leftAxes + self.rightAxes):
             ax.watchdog_feed()
+	    ax.config.watchdog_timeout = 2
 
         # Clear errors
         for odrv in self.odrvs:
